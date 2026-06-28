@@ -48,7 +48,8 @@ import { CitizenDashboard } from './components/dashboard/CitizenDashboard';
 import { DepartmentDashboard } from './components/dashboard/DepartmentDashboard';
 import { AdminDashboard } from './components/dashboard/AdminDashboard';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "https://civix-85vt.onrender.com";
 
 export interface Issue {
   id: string;

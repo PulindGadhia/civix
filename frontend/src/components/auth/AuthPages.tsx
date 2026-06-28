@@ -26,7 +26,8 @@ import { auth } from '../../services/firebase';
 import { Logo } from '../layout/Logo';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "https://civix-85vt.onrender.com";
 
 // ----------------------------------------------------
 // 1. Splash / Loading Screen
