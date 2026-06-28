@@ -180,16 +180,16 @@ export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
 
                   <div className="space-y-2">
                     <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block">Rate the Quality of Work</span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       {[1, 2, 3, 4, 5].map((star) => (
                         <button
                           key={star}
                           type="button"
                           onClick={() => setRating(star)}
-                          className="focus:outline-none transition-all cursor-pointer"
+                          className="focus:outline-none transition-all duration-200 hover:scale-125 active:scale-95 cursor-pointer transform"
                         >
                           <svg
-                            className={`h-6 w-6 ${
+                            className={`h-6 w-6 transition-colors duration-200 ${
                               star <= rating ? 'text-amber-400 fill-amber-400' : 'text-slate-700 hover:text-amber-300'
                             }`}
                             fill="none"
@@ -222,13 +222,13 @@ export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
                     <button
                       onClick={() => onVerifyResolution(selectedIssue.id, true, rating, feedback)}
                       disabled={rating === 0}
-                      className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-[9px] uppercase tracking-widest rounded-xl transition-all cursor-pointer disabled:bg-slate-850 disabled:text-slate-500"
+                      className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-slate-950 font-extrabold text-[9px] uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/5 cursor-pointer disabled:bg-slate-850 disabled:text-slate-500 disabled:scale-100"
                     >
                       Accept Resolution
                     </button>
                     <button
                       onClick={() => onVerifyResolution(selectedIssue.id, false, rating, feedback)}
-                      className="flex-1 py-2.5 bg-rose-950/60 border border-rose-500/30 hover:bg-rose-900/40 text-rose-400 font-extrabold text-[9px] uppercase tracking-widest rounded-xl transition-all cursor-pointer"
+                      className="flex-1 py-2.5 bg-rose-950/60 border border-rose-500/30 hover:bg-rose-900/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-rose-400 font-extrabold text-[9px] uppercase tracking-widest rounded-xl cursor-pointer"
                     >
                       Reject & Reopen
                     </button>

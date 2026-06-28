@@ -640,16 +640,13 @@ function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Logo size="navbar" />
-            <span className="hidden md:inline px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              Civic Platform
-            </span>
           </div>
           
           <div className="flex items-center gap-3">
             {/* Theme Toggle Button */}
             <button
               onClick={() => setTheme(prev => prev === 'light' ? 'dark' : 'light')}
-              className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer shadow-sm"
+              className="p-2.5 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-400 hover:text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer shadow-sm"
               title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
             >
               {theme === 'light' ? <Moon className="h-4 w-4 text-violet-400 animate-pulse" /> : <Sun className="h-4 w-4 text-amber-400 animate-pulse" />}
@@ -659,7 +656,7 @@ function App() {
             {userProfile && (
               <button 
                 onClick={() => setIsProfileOpen(true)}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-855 border border-slate-800 text-[10px] font-bold text-slate-300 hover:text-white transition-all cursor-pointer shadow-sm animate-scaleUp"
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-855 border border-slate-800 text-[10px] font-bold text-slate-300 hover:text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer shadow-sm animate-scaleUp"
               >
                 <div className="h-5 w-5 rounded-full bg-slate-950 border border-slate-805 overflow-hidden flex items-center justify-center shrink-0">
                   {userProfile.photoURL ? (
@@ -704,7 +701,7 @@ function App() {
           </div>
           <button
             onClick={fetchIssues}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:scale-[1.02] active:scale-[0.98] text-slate-300 transition-all duration-200 cursor-pointer"
           >
             <Activity className="h-3.5 w-3.5 text-emerald-400" />
             Sync Database

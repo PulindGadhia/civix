@@ -1,9 +1,8 @@
-/* eslint-disable react-hooks/set-state-in-effect, @typescript-eslint/no-explicit-any */
+/* eslint-disable react-hooks/set-state-in-effect, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { 
   ShieldAlert, 
-  ArrowRightLeft,
   Users,
   BarChart3,
   BrainCircuit,
@@ -31,6 +30,7 @@ import {
 import { showToast } from '../../utils/toast';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '../../services/firebase';
+import { LeafletMapContainer } from '../map/LeafletMapContainer';
 
 import type { Issue } from '../../App';
 
@@ -95,7 +95,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   currentUser,
   apiBaseUrl,
   onRefresh,
-  onSelectOnMap
+  onSelectOnMap: _onSelectOnMap
 }) => {
   const todayStr = useMemo(() => new Date().toDateString(), []);
   const sevenDaysAgo = useMemo(() => {
@@ -105,7 +105,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   }, []);
 
   // Navigation State
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'users' | 'officers' | 'departments'>('overview');
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'analytics' | 'users' | 'officers' | 'departments'>('overview');
+
+  // Queue Triage Filters
+  const [complaintSearch, setComplaintSearch] = useState('');
+  const [complaintDeptFilter, setComplaintDeptFilter] = useState('');
+  const [complaintPriorityFilter, setComplaintPriorityFilter] = useState('');
+  const [complaintStatusFilter, setComplaintStatusFilter] = useState('');
 
   // Core Data Lists
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -484,6 +490,91 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     return alerts;
   }, [issues, departments, officers]);
+
+  // Resolved issues today
+  const resolvedIssuesToday = useMemo(() => {
+    const today = new Date().toDateString();
+    return issues.filter(i => 
+      (i.status === 'resolved' || i.status === 'closed') && 
+      i.resolution_date && 
+      new Date(i.resolution_date).toDateString() === today
+    ).length;
+  }, [issues]);
+
+  // Filtered queue issues
+  const filteredQueueIssues = useMemo(() => {
+    let list = [...issues];
+    
+    if (complaintSearch.trim()) {
+      const q = complaintSearch.toLowerCase();
+      list = list.filter(i => 
+        (i.title || '').toLowerCase().includes(q) ||
+        (i.description || '').toLowerCase().includes(q) ||
+        (i.id || '').toLowerCase().includes(q)
+      );
+    }
+    if (complaintDeptFilter) {
+      list = list.filter(i => i.department === complaintDeptFilter);
+    }
+    if (complaintPriorityFilter) {
+      list = list.filter(i => i.priority === complaintPriorityFilter);
+    }
+    if (complaintStatusFilter) {
+      list = list.filter(i => i.status === complaintStatusFilter);
+    }
+    
+    // Sort critical first, then recent
+    list.sort((a, b) => {
+      const priorityWeight = { critical: 4, high: 3, medium: 2, low: 1 };
+      const wA = priorityWeight[a.priority as 'low' | 'medium' | 'high' | 'critical'] || 0;
+      const wB = priorityWeight[b.priority as 'low' | 'medium' | 'high' | 'critical'] || 0;
+      if (wA !== wB) return wB - wA;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
+    
+    return list;
+  }, [issues, complaintSearch, complaintDeptFilter, complaintPriorityFilter, complaintStatusFilter]);
+
+  // Recommended Officer (lowest workload)
+  const recommendedOfficer = useMemo(() => {
+    if (!selectedIssue) return null;
+    const deptId = selectedIssue.department;
+    if (!deptId) return null;
+    const deptOfficers = officers.filter(o => o.department === deptId && o.status === 'Active');
+    if (deptOfficers.length === 0) return null;
+    return [...deptOfficers].sort((a, b) => a.currentWorkload - b.currentWorkload)[0];
+  }, [selectedIssue, officers]);
+
+  // Close / Resolve Complaint
+  const handleCloseComplaint = async () => {
+    if (!selectedIssueId || isSubmitting) return;
+    if (!window.confirm('Are you sure you want to officially resolve and close this complaint?')) return;
+    
+    setIsSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('status', 'resolved');
+      formData.append('updated_by', currentUser.name || 'Administrator');
+      formData.append('notes', 'Administrator marked complaint as RESOLVED & CLOSED.');
+      
+      const response = await axios.post(
+        `${apiBaseUrl}/api/v1/issues/${selectedIssueId}/status`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+      
+      if (response.data.success) {
+        showToast('Complaint resolved and closed successfully.', 'success');
+        onRefresh();
+        fetchData();
+      }
+    } catch (err) {
+      console.error('Failed to close complaint:', err);
+      showToast('Failed to close complaint.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // AI Command Center handlers (Module 3 & Module 9)
   const handleGenerateInsights = async () => {
@@ -917,8 +1008,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               : 'border-transparent text-slate-500 hover:text-slate-350'
           }`}
         >
-          <BarChart3 className="h-4 w-4" />
+          <Map className="h-4 w-4" />
           Overview
+        </button>
+        <button
+          onClick={() => setActiveSubTab('analytics')}
+          className={`pb-2.5 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 border-b-2 transition-all cursor-pointer ${
+            activeSubTab === 'analytics' 
+              ? 'border-emerald-500 text-emerald-400' 
+              : 'border-transparent text-slate-500 hover:text-slate-350'
+          }`}
+        >
+          <BarChart3 className="h-4 w-4" />
+          Analytics & AI Insights
         </button>
         <button
           onClick={() => setActiveSubTab('users')}
@@ -955,14 +1057,562 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </button>
       </div>
 
-      {/* ────────────────── SUB TAB: OVERVIEW ────────────────── */}
+      {/* ────────────────── SUB TAB: OVERVIEW (OPERATIONAL WORKSPACE) ────────────────── */}
       {activeSubTab === 'overview' && (
+        <div className="space-y-6 animate-fadeIn">
+          
+          {/* Headline Banner */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-2">
+            <div>
+              <h1 className="text-xl font-black text-white uppercase tracking-wider">Operational Command Console</h1>
+              <p className="text-[11px] text-slate-500">Live smart city triage, map operations, and officer dispatch tracking</p>
+            </div>
+            <div className="flex gap-2">
+              <button 
+                onClick={onRefresh}
+                className="px-3.5 py-2 bg-slate-950 hover:bg-slate-900 border border-slate-800 rounded-xl text-xs font-bold text-slate-350 cursor-pointer transition-all"
+              >
+                Refresh Data
+              </button>
+            </div>
+          </div>
+
+          {/* Home KPIs Grid - 8 indicators (Task 5) */}
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+            <div className="p-4 bg-slate-900/40 border border-slate-800/80 rounded-2xl backdrop-blur-sm">
+              <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Total Reports</span>
+              <strong className="text-lg font-black text-white mt-1 block font-mono">{totalIssues}</strong>
+            </div>
+            <div className="p-4 bg-slate-900/40 border border-slate-800/80 rounded-2xl backdrop-blur-sm">
+              <span className="text-[9px] font-bold text-slate-555 uppercase tracking-wider block">Active Triage</span>
+              <strong className="text-lg font-black text-amber-400 mt-1 block font-mono">{pendingIssues}</strong>
+            </div>
+            <div className="p-4 bg-slate-900/40 border border-slate-800/80 rounded-2xl backdrop-blur-sm">
+              <span className="text-[9px] font-bold text-slate-555 uppercase tracking-wider block">Critical</span>
+              <strong className="text-lg font-black text-rose-500 mt-1 block font-mono">{criticalIssues}</strong>
+            </div>
+            <div className="p-4 bg-slate-900/40 border border-slate-800/80 rounded-2xl backdrop-blur-sm">
+              <span className="text-[9px] font-bold text-slate-555 uppercase tracking-wider block">Resolved Today</span>
+              <strong className="text-lg font-black text-emerald-400 mt-1 block font-mono">{resolvedIssuesToday}</strong>
+            </div>
+            <div className="p-4 bg-slate-900/40 border border-slate-800/80 rounded-2xl backdrop-blur-sm">
+              <span className="text-[9px] font-bold text-slate-555 uppercase tracking-wider block">Pending Verif</span>
+              <strong className="text-lg font-black text-blue-400 mt-1 block font-mono">{pendingVerification}</strong>
+            </div>
+            <div className="p-4 bg-slate-900/40 border border-slate-800/80 rounded-2xl backdrop-blur-sm">
+              <span className="text-[9px] font-bold text-slate-555 uppercase tracking-wider block">Staff Available</span>
+              <strong className="text-lg font-black text-teal-400 mt-1 block font-mono">{officersAvailable}</strong>
+            </div>
+            <div className="p-4 bg-slate-900/40 border border-slate-800/80 rounded-2xl backdrop-blur-sm">
+              <span className="text-[9px] font-bold text-slate-555 uppercase tracking-wider block">Avg SLA</span>
+              <strong className="text-lg font-black text-white mt-1 block font-mono">{avgResolutionTime}d</strong>
+            </div>
+            <div className="p-4 bg-slate-900/40 border border-slate-800/80 rounded-2xl backdrop-blur-sm">
+              <span className="text-[9px] font-bold text-slate-555 uppercase tracking-wider block">Satisfaction</span>
+              <strong className="text-lg font-black text-emerald-400 mt-1 block font-mono">{citizenSatisfaction}%</strong>
+            </div>
+          </div>
+
+          {/* Primary Operations Workspace */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            {/* Left Side: Map & Queue */}
+            <div className="lg:col-span-7 space-y-6">
+              
+              {/* Map Panel */}
+              <div className="p-4 bg-slate-900/40 border border-slate-800/80 rounded-3xl backdrop-blur-sm space-y-3">
+                <div className="flex justify-between items-center px-1">
+                  <h3 className="text-xs font-black text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <Map className="h-4 w-4 text-emerald-400" />
+                    City Operations Map
+                  </h3>
+                  <span className="text-[9px] font-mono text-slate-500">Live Pins ({filteredQueueIssues.length})</span>
+                </div>
+                <div className="h-[420px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 relative z-10">
+                  <LeafletMapContainer
+                    issues={filteredQueueIssues}
+                    selectedLocation={
+                      selectedIssue 
+                        ? { lat: selectedIssue.latitude || 23.0225, lng: selectedIssue.longitude || 72.5714 }
+                        : null
+                    }
+                    onLocationSelected={() => {}}
+                    onMarkerClick={(issue) => {
+                      setSelectedIssueId(issue.id);
+                      setTargetDept(issue.department || '');
+                      setTargetOfficerId(issue.officer_id || '');
+                      setTargetCategory(issue.category || '');
+                      setTargetPriority(issue.priority || '');
+                      setTargetSeverity(issue.severity || 'low');
+                      setTargetEscalated(!!issue.escalated);
+                      setTargetDeadline(issue.deadline || issue.estimated_completion_date || '');
+                      setTargetInternalNotes(issue.internal_notes || '');
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Triage Queue List */}
+              <div className="p-5 bg-slate-900/40 border border-slate-800/80 rounded-3xl backdrop-blur-sm space-y-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="text-xs font-black text-white uppercase tracking-wider">Complaint Queue</h3>
+                    <p className="text-[10px] text-slate-500">Triage incoming civilian reports</p>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-950 border border-slate-800 text-slate-400 font-mono">
+                    {filteredQueueIssues.length} Matches
+                  </span>
+                </div>
+
+                {/* Queue Filters */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                  <input
+                    type="text"
+                    placeholder="Search keywords..."
+                    value={complaintSearch}
+                    onChange={(e) => setComplaintSearch(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                  <select
+                    value={complaintDeptFilter}
+                    onChange={(e) => setComplaintDeptFilter(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-slate-355 focus:outline-none"
+                  >
+                    <option value="">All Sectors</option>
+                    {departments.map(d => (
+                      <option key={d.id} value={d.id}>{d.departmentName || d.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={complaintPriorityFilter}
+                    onChange={(e) => setComplaintPriorityFilter(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-slate-355 focus:outline-none"
+                  >
+                    <option value="">All Priorities</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                  <select
+                    value={complaintStatusFilter}
+                    onChange={(e) => setComplaintStatusFilter(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-slate-355 focus:outline-none"
+                  >
+                    <option value="">All Statuses</option>
+                    <option value="reported">Reported</option>
+                    <option value="assigned">Assigned</option>
+                    <option value="citizen_verification_pending">Pending Verification</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
+
+                {/* Queue Items */}
+                <div className="space-y-2 overflow-y-auto max-h-[360px] pr-1.5 scrollbar-thin">
+                  {filteredQueueIssues.length === 0 ? (
+                    <div className="text-center py-10 text-slate-555 italic text-[11px]">
+                      No complaints found in the active dispatch queue.
+                    </div>
+                  ) : (
+                    filteredQueueIssues.map(issue => {
+                      const isSelected = selectedIssueId === issue.id;
+                      return (
+                        <div
+                          key={issue.id}
+                          onClick={() => {
+                            setSelectedIssueId(issue.id);
+                            setTargetDept(issue.department || '');
+                            setTargetOfficerId(issue.officer_id || '');
+                            setTargetCategory(issue.category || '');
+                            setTargetPriority(issue.priority || '');
+                            setTargetSeverity(issue.severity || 'low');
+                            setTargetEscalated(!!issue.escalated);
+                            setTargetDeadline(issue.deadline || issue.estimated_completion_date || '');
+                            setTargetInternalNotes(issue.internal_notes || '');
+                          }}
+                          className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col md:flex-row justify-between items-start md:items-center gap-3 ${
+                            isSelected 
+                              ? 'bg-slate-800/40 border-emerald-500/50 shadow-lg shadow-emerald-500/5' 
+                              : 'bg-slate-950/20 border-slate-800/60 hover:bg-slate-900/20'
+                          }`}
+                        >
+                          <div className="space-y-1 max-w-md">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[9px] text-slate-500">#{issue.id.slice(-6).toUpperCase()}</span>
+                              {getStatusBadge(issue.status)}
+                              {issue.priority === 'critical' && (
+                                <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase tracking-widest animate-pulse">Critical</span>
+                              )}
+                            </div>
+                            <h4 className="text-xs font-bold text-white leading-snug">{issue.title}</h4>
+                            <p className="text-[10px] text-slate-500 truncate max-w-sm">{issue.address}</p>
+                          </div>
+                          
+                          <div className="text-right shrink-0 flex md:flex-col gap-2 items-center md:items-end text-[9px] text-slate-500">
+                            <span className="capitalize bg-slate-900/60 border border-slate-800 px-2 py-0.5 rounded font-mono">
+                              Sector: {issue.category || 'Other'}
+                            </span>
+                            <span className="font-mono">
+                              {issue.createdAt ? new Date(issue.createdAt).toLocaleDateString() : '—'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Right Side: rich Details & triage Panel (Task 4, 8, 9) */}
+            <div className="lg:col-span-5">
+              {selectedIssue ? (
+                <div className="p-6 bg-slate-900/40 border border-slate-800/80 rounded-3xl backdrop-blur-sm space-y-5">
+                  
+                  {/* Title Header */}
+                  <div>
+                    <span className="text-[9px] font-mono text-slate-550 uppercase tracking-widest block">Incident Profile #{selectedIssue.id.slice(-6).toUpperCase()}</span>
+                    <h2 className="text-base font-black text-white mt-1 leading-snug">{selectedIssue.title}</h2>
+                    <div className="flex gap-2 mt-2">
+                      {getStatusBadge(selectedIssue.status)}
+                      {selectedIssue.priority && (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-950 border border-slate-800 text-slate-350 capitalize">
+                          Priority: {selectedIssue.priority}
+                        </span>
+                      )}
+                      {selectedIssue.escalated && (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/20 uppercase">
+                          Escalated
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Description & Media (Task 4) */}
+                  <div className="space-y-2 border-t border-slate-850 pt-4">
+                    <p className="text-xs text-slate-350 leading-relaxed">{selectedIssue.description}</p>
+                    {selectedIssue.address && (
+                      <p className="text-[10px] text-slate-550 font-mono">📍 {selectedIssue.address}</p>
+                    )}
+                    {selectedIssue.citizenId && (
+                      <p className="text-[9px] text-slate-500">Reported by Citizen: <span className="text-slate-350 font-mono font-bold">{selectedIssue.citizenId}</span></p>
+                    )}
+                    
+                    {/* Attachment Image Preview */}
+                    {selectedIssue.publicImageUrl && (
+                      <div className="mt-3">
+                        <span className="text-[8px] font-bold text-slate-550 uppercase tracking-wider block mb-1.5">Evidence Media Attachment</span>
+                        <div className="h-28 w-44 rounded-xl border border-slate-805 overflow-hidden bg-slate-950">
+                          <img 
+                            src={selectedIssue.publicImageUrl} 
+                            alt="Incident Evidence" 
+                            className="h-full w-full object-cover hover:scale-105 transition-transform duration-300 cursor-pointer"
+                            onClick={() => window.open(selectedIssue.publicImageUrl || '', '_blank')}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 🤖 AI Dispatch Recommendation (Task 9) */}
+                  <div className="p-4 bg-[#110e2b]/50 border border-violet-900/20 rounded-2xl space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[9px] font-black text-violet-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <BrainCircuit className="h-4 w-4 text-violet-400 animate-pulse" />
+                        AI Dispatch Audit
+                      </span>
+                      {selectedIssue.aiConfidence && (
+                        <span className="px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 text-[8px] font-black border border-violet-500/20 font-mono">
+                          {Math.round(selectedIssue.aiConfidence * 100)}% Confidence
+                        </span>
+                      )}
+                    </div>
+                    
+                    {selectedIssue.aiSummary ? (
+                      <p className="text-[10px] text-violet-200/90 leading-relaxed font-semibold italic">
+                        "{selectedIssue.aiSummary}"
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-slate-500 italic">
+                        Gemini classification analysis completed successfully. Override parameters recommended below.
+                      </p>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-3 text-[9px] text-slate-400 pt-3 border-t border-violet-900/20">
+                      <div>
+                        <span className="text-slate-550 block font-bold uppercase text-[7px] tracking-wider mb-0.5">Suggested Sector</span>
+                        <strong className="text-slate-200 capitalize">{selectedIssue.category || 'Other'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-550 block font-bold uppercase text-[7px] tracking-wider mb-0.5">Priority Override</span>
+                        <strong className="text-slate-200 capitalize">{selectedIssue.priority || 'Medium'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-550 block font-bold uppercase text-[7px] tracking-wider mb-0.5">Est. Resolution SLA</span>
+                        <strong className="text-emerald-400 font-mono">
+                          {selectedIssue.priority === 'critical' ? '24 - 48 Hours' : selectedIssue.priority === 'high' ? '48 - 72 Hours' : '3 - 5 Days'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-550 block font-bold uppercase text-[7px] tracking-wider mb-0.5">Risk Factor</span>
+                        <strong className={selectedIssue.priority === 'critical' || selectedIssue.priority === 'high' ? 'text-rose-450 font-bold' : 'text-slate-200'}>
+                          {selectedIssue.priority === 'critical' ? 'CRITICAL RISK' : selectedIssue.priority === 'high' ? 'HIGH RISK' : 'STABLE'}
+                        </strong>
+                      </div>
+                    </div>
+                    
+                    {recommendedOfficer && (
+                      <div className="bg-slate-950/40 border border-slate-850 p-2.5 rounded-xl text-[9px] text-slate-400 mt-2 flex justify-between items-center">
+                        <div>
+                          <span className="text-slate-500 block text-[7px] font-bold uppercase mb-0.5">Recommended Officer (Lowest Workload)</span>
+                          <strong className="text-slate-200">{recommendedOfficer.fullName}</strong>
+                          <span className="block text-[8px] text-slate-500">{recommendedOfficer.designation} ({recommendedOfficer.currentWorkload} active cases)</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setTargetOfficerId(recommendedOfficer.uid || recommendedOfficer.id)}
+                          className="px-2 py-1 bg-violet-650 hover:bg-violet-600 text-white rounded text-[8px] font-bold cursor-pointer transition-colors"
+                        >
+                          Auto-Select
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Overrides Form Triage Area (Task 4) */}
+                  <form onSubmit={handleSaveOverrides} className="space-y-4 border-t border-slate-850 pt-4">
+                    <span className="text-[9px] font-bold text-slate-555 uppercase tracking-wider block">Dispatch Override Control</span>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Department */}
+                      <div className="space-y-1">
+                        <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Department</label>
+                        <select
+                          value={targetDept}
+                          onChange={(e) => setTargetDept(e.target.value)}
+                          className="w-full text-xs bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="">-- Choose Dept --</option>
+                          {departments.map(d => (
+                            <option key={d.id} value={d.id}>{d.departmentName || d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Officer */}
+                      <div className="space-y-1">
+                        <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Officer Assignment</label>
+                        <select
+                          value={targetOfficerId}
+                          onChange={(e) => setTargetOfficerId(e.target.value)}
+                          className="w-full text-xs bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="">-- Choose Officer --</option>
+                          {officers.map(o => (
+                            <option key={o.uid || o.id} value={o.uid || o.id}>
+                              {o.fullName} ({o.department.toUpperCase()})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Category */}
+                      <div className="space-y-1">
+                        <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Category</label>
+                        <select
+                          value={targetCategory}
+                          onChange={(e) => setTargetCategory(e.target.value)}
+                          className="w-full text-xs bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="">-- Choose Category --</option>
+                          <option value="roads">Roads & Potholes</option>
+                          <option value="sanitation">Sanitation & Garbage</option>
+                          <option value="electrical">Electrical & Streetlights</option>
+                          <option value="water">Water & Leaks</option>
+                          <option value="sewer">Sewerage</option>
+                          <option value="garden">Gardens & Parks</option>
+                          <option value="civil">Civil Structure</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+
+                      {/* Priority */}
+                      <div className="space-y-1">
+                        <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Priority</label>
+                        <select
+                          value={targetPriority}
+                          onChange={(e) => setTargetPriority(e.target.value)}
+                          className="w-full text-xs bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="">-- Choose Priority --</option>
+                          <option value="low">Low</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High</option>
+                          <option value="critical">Critical</option>
+                        </select>
+                      </div>
+
+                      {/* Severity */}
+                      <div className="space-y-1">
+                        <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Severity</label>
+                        <select
+                          value={targetSeverity}
+                          onChange={(e) => setTargetSeverity(e.target.value)}
+                          className="w-full text-xs bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="low">Low</option>
+                          <option value="medium">Medium</option>
+                          <option value="high">High</option>
+                          <option value="critical">Critical</option>
+                        </select>
+                      </div>
+
+                      {/* Resolution SLA Deadline */}
+                      <div className="space-y-1">
+                        <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">SLA Deadline</label>
+                        <input
+                          type="date"
+                          value={targetDeadline}
+                          onChange={(e) => setTargetDeadline(e.target.value)}
+                          className="w-full text-xs bg-slate-950 border border-slate-800 rounded-xl p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Escalate Toggle */}
+                    <label className="flex items-center gap-2.5 cursor-pointer py-1">
+                      <input
+                        type="checkbox"
+                        checked={targetEscalated}
+                        onChange={(e) => setTargetEscalated(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-800 bg-slate-950 text-emerald-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                      />
+                      <span className="text-[10px] font-semibold text-slate-300">
+                        Escalate incident (Marks critical and dispatches emergency alert notification)
+                      </span>
+                    </label>
+
+                    {/* Internal Notes */}
+                    <div className="space-y-1">
+                      <label className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Internal Administrative Dispatcher Notes</label>
+                      <textarea
+                        value={targetInternalNotes}
+                        onChange={(e) => setTargetInternalNotes(e.target.value)}
+                        placeholder="Add internal logs for officers..."
+                        className="w-full text-xs bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-slate-200 focus:outline-none focus:border-emerald-500 min-h-[50px] resize-none"
+                      />
+                    </div>
+
+                    {/* Triage action triggers */}
+                    <div className="flex gap-2 pt-2">
+                      {selectedIssue.status !== 'resolved' && selectedIssue.status !== 'closed' && (
+                        <button
+                          type="button"
+                          onClick={handleCloseComplaint}
+                          disabled={isSubmitting}
+                          className="px-4 py-2.5 bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-450 text-[10px] font-bold rounded-xl cursor-pointer transition-colors"
+                        >
+                          Resolve Issue
+                        </button>
+                      )}
+                      
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer disabled:bg-slate-850 disabled:text-slate-550"
+                      >
+                        {isSubmitting ? 'Applying Details...' : 'Apply Dispatch Overrides'}
+                      </button>
+                    </div>
+
+                  </form>
+
+                  {/* Operations Timeline Status Tracking (Task 8) */}
+                  <div className="space-y-2.5 border-t border-slate-850 pt-4">
+                    <span className="text-[9px] font-bold text-slate-555 uppercase tracking-wider block">Complaint Timeline & Auditing Logs</span>
+                    
+                    <div className="space-y-3.5 relative pl-4 border-l border-slate-800 ml-1">
+                      <div className="relative text-[10px]">
+                        <span className="absolute -left-[21px] top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 border-2 border-slate-900" />
+                        <strong className="text-white block">Citizen Reported</strong>
+                        <span className="text-slate-500 text-[9px]">Logged into system via Citizen Mobile App Portal</span>
+                      </div>
+                      
+                      {selectedIssue.officer_id && (
+                        <div className="relative text-[10px]">
+                          <span className="absolute -left-[21px] top-0.5 h-2.5 w-2.5 rounded-full bg-blue-500 border-2 border-slate-900" />
+                          <strong className="text-white block">Dispatched & Assigned</strong>
+                          <span className="text-slate-500 text-[9px]">Assigned to: {selectedIssue.officer_name || 'Officer'}</span>
+                        </div>
+                      )}
+                      
+                      {(selectedIssue.status === 'resolved' || selectedIssue.status === 'closed') && (
+                        <div className="relative text-[10px]">
+                          <span className="absolute -left-[21px] top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 border-2 border-slate-900 animate-ping" />
+                          <strong className="text-emerald-450 block font-bold">Closed & Resolved</strong>
+                          <span className="text-slate-500 text-[9px]">Remediation verified by dispatcher</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+              ) : (
+                <div className="h-full min-h-[450px] flex flex-col items-center justify-center p-8 rounded-3xl bg-slate-900/10 border border-slate-800/40 backdrop-blur-sm text-center text-slate-555">
+                  <div className="h-12 w-12 rounded-2xl bg-slate-950 border border-slate-850 flex items-center justify-center text-slate-500 mb-3 shadow-inner">
+                    <Activity className="h-5 w-5 text-emerald-500/70" />
+                  </div>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Awaiting Dispatch Select</h3>
+                  <p className="text-[10px] text-slate-555 max-w-[280px] mt-1 leading-relaxed">
+                    Select any complaint pin on the operations map or select from the queue list to review detailed AI insights and override officer routing.
+                  </p>
+                </div>
+              )}
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
+      {/* ────────────────── SUB TAB: ANALYTICS & AI INSIGHTS ────────────────── */}
+      {activeSubTab === 'analytics' && (
         <div className="space-y-8 animate-fadeIn">
+
+          {/* Detailed Performance Metrics Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
+              <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Reopened Cases</span>
+              <strong className="text-xl font-black text-indigo-405 mt-1 block font-mono">{reopenedIssues}</strong>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
+              <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Escalated Tickets</span>
+              <strong className="text-xl font-black text-orange-400 mt-1 block font-mono">{escalatedIssues}</strong>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
+              <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">AI Classification Accuracy</span>
+              <strong className="text-xl font-black text-violet-400 mt-1 block font-mono">{aiAccuracyRate}%</strong>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
+              <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">SLA Compliance Rate</span>
+              <strong className="text-xl font-black text-emerald-400 mt-1 block font-mono">{slaCompliance}%</strong>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
+              <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Avg Staff Load</span>
+              <strong className="text-xl font-black text-white mt-1 block font-mono">{avgOfficerWorkload}</strong>
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
+              <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Online Sectors</span>
+              <strong className="text-xl font-black text-teal-400 mt-1 block font-mono">{departmentsOnline}</strong>
+            </div>
+          </div>
           
           {/* Executive Alerts Banner (Module 8) */}
           {executiveAlerts.length > 0 && (
             <div className="p-4 bg-slate-900/60 border border-rose-500/30 rounded-2xl backdrop-blur-sm space-y-2">
-              <div className="flex items-center gap-2 text-rose-400 font-extrabold text-xs uppercase tracking-wider">
+              <div className="flex items-center gap-2 text-rose-450 font-extrabold text-xs uppercase tracking-wider">
                 <ShieldAlert className="h-4 w-4 text-rose-500 animate-pulse" />
                 Live Command Center Alerts
               </div>
@@ -981,73 +1631,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
             </div>
           )}
-
-          {/* 14-Card Global Metrics Grid (Module 1) */}
-          <div className="space-y-4">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">Issue Lifecycle Metrics</span>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-              <div className="p-4.5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
-                <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Total Issues</span>
-                <strong className="text-xl font-black text-white mt-1 block font-mono">{totalIssues}</strong>
-              </div>
-              <div className="p-4.5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
-                <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Active Issues</span>
-                <strong className="text-xl font-black text-amber-400 mt-1 block font-mono">{pendingIssues}</strong>
-              </div>
-              <div className="p-4.5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
-                <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Resolved</span>
-                <strong className="text-xl font-black text-emerald-400 mt-1 block font-mono">{resolvedIssues}</strong>
-              </div>
-              <div className="p-4.5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
-                <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Critical</span>
-                <strong className="text-xl font-black text-rose-500 mt-1 block font-mono">{criticalIssues}</strong>
-              </div>
-              <div className="p-4.5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
-                <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Pending Verif</span>
-                <strong className="text-xl font-black text-blue-400 mt-1 block font-mono">{pendingVerification}</strong>
-              </div>
-              <div className="p-4.5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
-                <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Reopened</span>
-                <strong className="text-xl font-black text-indigo-400 mt-1 block font-mono">{reopenedIssues}</strong>
-              </div>
-              <div className="p-4.5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
-                <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Escalated</span>
-                <strong className="text-xl font-black text-orange-400 mt-1 block font-mono">{escalatedIssues}</strong>
-              </div>
-            </div>
-
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block pt-2">Operational Capacity & Satisfaction</span>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-              <div className="p-4.5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
-                <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Avg Res Time</span>
-                <strong className="text-xl font-black text-white mt-1 block font-mono">{avgResolutionTime}d</strong>
-              </div>
-              <div className="p-4.5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
-                <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Satisfaction</span>
-                <strong className="text-xl font-black text-emerald-400 mt-1 block font-mono">{citizenSatisfaction}%</strong>
-              </div>
-              <div className="p-4.5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
-                <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">AI Accuracy</span>
-                <strong className="text-xl font-black text-violet-400 mt-1 block font-mono">{aiAccuracyRate}%</strong>
-              </div>
-              <div className="p-4.5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
-                <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">SLA Compliance</span>
-                <strong className="text-xl font-black text-emerald-400 mt-1 block font-mono">{slaCompliance}%</strong>
-              </div>
-              <div className="p-4.5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
-                <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Avg Officer Load</span>
-                <strong className="text-xl font-black text-white mt-1 block font-mono">{avgOfficerWorkload}</strong>
-              </div>
-              <div className="p-4.5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
-                <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Depts Online</span>
-                <strong className="text-xl font-black text-teal-400 mt-1 block font-mono">{departmentsOnline}</strong>
-              </div>
-              <div className="p-4.5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm">
-                <span className="text-[9px] font-bold text-slate-550 uppercase tracking-wider block">Officers Available</span>
-                <strong className="text-xl font-black text-white mt-1 block font-mono">{officersAvailable}</strong>
-              </div>
-            </div>
-          </div>
 
           {/* AI Executive Command Panel (Module 3 & 9) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -1070,7 +1653,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               {aiInsights.length === 0 ? (
-                <p className="text-xs text-slate-500 italic py-4">Click "Refresh Insights" to evaluate live dashboard metrics.</p>
+                <p className="text-xs text-slate-555 italic py-4">Click "Refresh Insights" to evaluate live dashboard metrics.</p>
               ) : (
                 <ul className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
                   {aiInsights.map((insight, idx) => (
@@ -1101,28 +1684,80 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               {!aiPredictions ? (
-                <p className="text-xs text-slate-500 italic py-4">Click "Generate Predictions" to analyze historical workload trends.</p>
+                <p className="text-xs text-slate-555 italic py-4">Click "Generate Predictions" to analyze historical workload trends.</p>
               ) : aiPredictions.insufficient ? (
-                <div className="p-3.5 bg-slate-950/30 border border-slate-850 rounded-xl text-center">
+                <div className="p-3.5 bg-slate-950/30 border border-slate-855 rounded-xl text-center">
                   <span className="text-[11px] font-semibold text-slate-400">{aiPredictions.message}</span>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3 text-[10px] max-h-[180px] overflow-y-auto pr-1">
                   <div className="bg-slate-950/30 border border-slate-850 p-3 rounded-xl">
-                    <span className="text-slate-500 font-bold block uppercase text-[8px]">Expected Complaints Next Week</span>
+                    <span className="text-slate-500 font-bold block uppercase text-[8px] mb-0.5">Expected Complaints Next Week</span>
                     <strong className="text-sm text-white font-mono mt-0.5 block">{aiPredictions.expected_complaints_next_week} reports</strong>
                   </div>
                   <div className="bg-slate-950/30 border border-slate-850 p-3 rounded-xl">
-                    <span className="text-slate-500 font-bold block uppercase text-[8px]">Backlog Clearance ETA</span>
+                    <span className="text-slate-500 font-bold block uppercase text-[8px] mb-0.5">Backlog Clearance ETA</span>
                     <strong className="text-sm text-emerald-400 font-mono mt-0.5 block">{aiPredictions.resolution_backlog_eta}</strong>
                   </div>
                   <div className="bg-slate-950/30 border border-slate-850 p-3 rounded-xl col-span-2">
                     <span className="text-slate-500 font-bold block uppercase text-[8px] mb-0.5">Predicted Workload Forecast</span>
-                    <p className="text-slate-350 leading-relaxed">{aiPredictions.predicted_department_workload}</p>
+                    <p className="text-slate-355 leading-relaxed">{aiPredictions.predicted_department_workload}</p>
                   </div>
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Audit Trail & Rank Workspaces */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            {/* Top Performing Officers Card */}
+            <div className="lg:col-span-6 p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm space-y-4">
+              <h3 className="text-xs font-extrabold text-white uppercase tracking-widest flex items-center gap-1.5">
+                <UserCheck className="h-4 w-4 text-emerald-400" />
+                Top Performing Municipal Officers
+              </h3>
+              <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-1">
+                {topOfficers.map(o => (
+                  <div key={o.uid || o.id} className="text-[10px] p-3 bg-slate-950/20 border border-slate-850 rounded-xl flex justify-between items-center">
+                    <div>
+                      <strong className="text-slate-200 block">{o.fullName}</strong>
+                      <span className="text-slate-500 capitalize">{o.designation} • {o.department}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-emerald-400 font-mono font-bold block">{o.performanceScore}% Score</span>
+                      <span className="text-slate-500 block text-[9px]">{o.currentWorkload} active tickets</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Administrative Audit Trail Log */}
+            <div className="lg:col-span-6 p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm space-y-4">
+              <h3 className="text-xs font-extrabold text-white uppercase tracking-widest flex items-center gap-1.5">
+                <Activity className="h-4 w-4 text-emerald-400" />
+                Administrative Audit Trail Log
+              </h3>
+              {activities.length === 0 ? (
+                <p className="text-xs text-slate-555 text-center py-6">No administrative audit events logged.</p>
+              ) : (
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                  {activities.map(act => (
+                    <div key={act.id} className="text-[10px] p-3 bg-slate-950/20 border border-slate-850 rounded-xl flex justify-between items-start gap-4">
+                      <div>
+                        <strong className="text-slate-200 block">{act.action}</strong>
+                        <span className="text-slate-450 leading-relaxed block mt-0.5">{act.adminName} modified {act.targetType} target #{act.targetId.slice(-6).toUpperCase()}</span>
+                      </div>
+                      <span className="text-[8px] text-slate-500 font-mono shrink-0">
+                        {act.timestamp ? new Date(act.timestamp).toLocaleTimeString() : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
 
           {/* Custom SVG Executive Analytics Charts (Module 2) */}
@@ -1175,7 +1810,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   })()}
                 </svg>
               </div>
-              <div className="flex justify-around text-[9px] text-slate-450 border-t border-slate-800/40 pt-2 font-mono">
+              <div className="flex justify-around text-[9px] text-slate-455 border-t border-slate-800/40 pt-2 font-mono">
                 <div className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-emerald-500" /> 1st</div>
                 <div className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-blue-500" /> 2nd</div>
                 <div className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded bg-amber-500" /> 3rd</div>
@@ -1214,7 +1849,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <BrainCircuit className="h-4 w-4 text-emerald-400" />
                   AI confidence trend
                 </h4>
-                <p className="text-[10px] text-slate-500">Confidence scores of recent report routing</p>
+                <p className="text-[10px] text-slate-555">Confidence scores of recent routing</p>
               </div>
 
               <div className="h-28 w-full py-2">
@@ -1330,228 +1965,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               )}
             </div>
-            <span className="hidden">Debug: {activities.length} acts, {topOfficers.length} top officers</span>
           </div>
 
-          {/* Override Panel Workspace */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-[400px]">
-            {/* Active Complaint Selector List */}
-            <div className="lg:col-span-5 p-5 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm flex flex-col space-y-4">
-              <h3 className="text-xs font-extrabold text-white uppercase tracking-widest flex items-center gap-1.5">
-                <ArrowRightLeft className="h-4 w-4 text-emerald-400" />
-                Overriding Dispatch Controller
-              </h3>
-              <div className="space-y-3 overflow-y-auto max-h-[400px] pr-2">
-                {issues.map(issue => (
-                  <button
-                    key={issue.id}
-                    onClick={() => {
-                      setSelectedIssueId(issue.id);
-                      setTargetDept(issue.department || '');
-                      setTargetOfficerId(issue.officer_id || '');
-                      setTargetCategory(issue.category || '');
-                      setTargetPriority(issue.priority || '');
-                      setTargetSeverity(issue.severity || 'low');
-                      setTargetEscalated(!!issue.escalated);
-                      setTargetDeadline(issue.deadline || issue.estimated_completion_date || '');
-                      setTargetInternalNotes(issue.internal_notes || '');
-                    }}
-                    className={`w-full text-left p-4 rounded-xl border transition-all ${
-                      selectedIssueId === issue.id 
-                        ? 'bg-slate-800/50 border-emerald-500/50' 
-                        : 'bg-slate-950/40 border-slate-800/50 hover:bg-slate-800/20'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-2 text-[9px]">
-                      <span className="font-mono text-slate-500">#{issue.id.slice(-6)}</span>
-                      {getStatusBadge(issue.status)}
-                    </div>
-                    <h4 className="text-xs font-bold text-white line-clamp-1">{issue.title}</h4>
-                    <div className="flex justify-between items-center mt-3 text-[9px] text-slate-500">
-                      <span className="capitalize">Dept: {issue.department || 'None'}</span>
-                      <span>{issue.officer_name || 'Unassigned'}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Overriding Workspace Form panel */}
-            <div className="lg:col-span-7">
-              {selectedIssue ? (
-                <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 backdrop-blur-sm space-y-6">
-                  <div>
-                    <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest">Administrator Override Workspace</span>
-                    <h3 className="text-base font-extrabold text-white mt-1">{selectedIssue.title}</h3>
-                    <p className="text-xs text-slate-455 mt-1 leading-normal">{selectedIssue.description}</p>
-                  </div>
-
-                  {(selectedIssue.aiAnalysis || selectedIssue.aiSummary) && (
-                    <div className="p-4 bg-slate-950/60 border border-slate-800/80 rounded-xl space-y-2 text-[10px]">
-                      <span className="text-[9px] font-bold text-violet-400 uppercase tracking-widest block">🤖 AI Dispatch Intelligence</span>
-                      {selectedIssue.aiSummary && (
-                        <p className="text-[11px] text-violet-200 leading-relaxed">{selectedIssue.aiSummary}</p>
-                      )}
-                      <div className="grid grid-cols-2 gap-2 text-slate-400 pt-1 border-t border-slate-800/40">
-                        <div>AI Category: <span className="text-slate-200 font-bold">{selectedIssue.category}</span></div>
-                        <div>Confidence score: <span className="text-slate-200 font-bold font-mono">{Math.round((selectedIssue.aiConfidence || 0) * 100)}%</span></div>
-                      </div>
-                    </div>
-                  )}
-
-                  <form onSubmit={handleSaveOverrides} className="space-y-4 animate-fadeIn">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Department Select */}
-                      <div className="space-y-1.5">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Override Department</label>
-                        <select
-                          value={targetDept}
-                          onChange={(e) => setTargetDept(e.target.value)}
-                          className="w-full text-xs bg-slate-950 border border-slate-800/80 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500"
-                        >
-                          <option value="">-- Choose Department --</option>
-                          {departments.map(d => (
-                            <option key={d.id} value={d.id}>{d.departmentName || d.name}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Officer Select */}
-                      <div className="space-y-1.5">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Assign Officer</label>
-                        <select
-                          value={targetOfficerId}
-                          onChange={(e) => setTargetOfficerId(e.target.value)}
-                          className="w-full text-xs bg-slate-950 border border-slate-800/80 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500"
-                        >
-                          <option value="">-- Choose Officer --</option>
-                          {officers.map(o => (
-                            <option key={o.uid || o.id} value={o.uid || o.id}>
-                              {o.fullName} ({o.department.toUpperCase()})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Category Select */}
-                      <div className="space-y-1.5">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Override Category</label>
-                        <select
-                          value={targetCategory}
-                          onChange={(e) => setTargetCategory(e.target.value)}
-                          className="w-full text-xs bg-slate-950 border border-slate-800/80 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500"
-                        >
-                          <option value="">-- Choose Category --</option>
-                          <option value="roads">Roads & Potholes</option>
-                          <option value="sanitation">Sanitation & Garbage</option>
-                          <option value="electrical">Electrical & Streetlights</option>
-                          <option value="water">Water & Leaks</option>
-                          <option value="sewer">Sewerage</option>
-                          <option value="garden">Gardens & Parks</option>
-                          <option value="civil">Civil Structure</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </div>
-
-                      {/* Priority Select */}
-                      <div className="space-y-1.5">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Override Priority</label>
-                        <select
-                          value={targetPriority}
-                          onChange={(e) => setTargetPriority(e.target.value)}
-                          className="w-full text-xs bg-slate-950 border border-slate-800/80 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500"
-                        >
-                          <option value="">-- Choose Priority --</option>
-                          <option value="low">Low</option>
-                          <option value="medium">Medium</option>
-                          <option value="high">High</option>
-                          <option value="critical">Critical</option>
-                        </select>
-                      </div>
-
-                      {/* Severity Select */}
-                      <div className="space-y-1.5">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Override Severity</label>
-                        <select
-                          value={targetSeverity}
-                          onChange={(e) => setTargetSeverity(e.target.value)}
-                          className="w-full text-xs bg-slate-950 border border-slate-800/80 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500"
-                        >
-                          <option value="low">Low</option>
-                          <option value="medium">Medium</option>
-                          <option value="high">High</option>
-                          <option value="critical">Critical</option>
-                        </select>
-                      </div>
-
-                      {/* Change Deadline */}
-                      <div className="space-y-1.5">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Resolution Deadline</label>
-                        <input
-                          type="date"
-                          value={targetDeadline}
-                          onChange={(e) => setTargetDeadline(e.target.value)}
-                          className="w-full text-xs bg-slate-950 border border-slate-800/80 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Escalate & Notes */}
-                    <div className="space-y-4">
-                      {/* Escalate toggle */}
-                      <label className="flex items-center gap-2.5 cursor-pointer pt-1">
-                        <input
-                          type="checkbox"
-                          checked={targetEscalated}
-                          onChange={(e) => setTargetEscalated(e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-800 bg-slate-950 text-emerald-500 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                        />
-                        <span className="text-[11px] font-semibold text-white">
-                          Escalate this incident (sends high priority notifications)
-                        </span>
-                      </label>
-
-                      {/* Internal Notes */}
-                      <div className="space-y-1.5">
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Internal Administrative Notes</label>
-                        <textarea
-                          value={targetInternalNotes}
-                          onChange={(e) => setTargetInternalNotes(e.target.value)}
-                          placeholder="Add internal notes for dispatchers and officers..."
-                          className="w-full text-xs bg-slate-950 border border-slate-800/80 rounded-xl p-3 text-slate-200 focus:outline-none focus:border-emerald-500 min-h-[60px]"
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[10px] font-extrabold uppercase tracking-wider rounded-xl transition-all cursor-pointer disabled:bg-slate-850 disabled:text-slate-500"
-                    >
-                      Apply Administrative Overrides
-                    </button>
-                  </form>
-
-                  <div className="pt-4 border-t border-slate-800/50 flex justify-between items-center text-[10px]">
-                    <span className="text-slate-500 truncate max-w-[70%]">Incident Address: {selectedIssue.address}</span>
-                    <button
-                      onClick={() => onSelectOnMap(selectedIssue)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-950 border border-slate-805 hover:border-slate-700 text-slate-350 rounded-lg cursor-pointer transition-all"
-                    >
-                      <Map className="h-3.5 w-3.5 text-emerald-400" />
-                      Locate on Map
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="h-full min-h-[400px] flex flex-col items-center justify-center p-8 rounded-2xl bg-slate-900/20 border border-slate-800/40 backdrop-blur-sm text-center text-slate-500">
-                  <UserCheck className="h-10 w-10 text-slate-700 mb-2" />
-                  <h3 className="text-sm font-bold text-slate-400">Select a case document</h3>
-                  <p className="text-[10px] text-slate-550 max-w-[280px] mt-1">Select any active incident complaint card on the left to manually override departments or assign officers.</p>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       )}
 

@@ -557,7 +557,7 @@ export const LoginPage: React.FC = () => {
           <button
             type="submit"
             disabled={isSubmitting || isLockedOut}
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors shadow-lg cursor-pointer disabled:opacity-50"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] text-slate-950 transition-all duration-200 shadow-lg shadow-emerald-500/10 cursor-pointer disabled:opacity-50 disabled:scale-100"
           >
             {isSubmitting ? <RefreshCw className="h-4 w-4 animate-spin text-slate-950" /> : isLockedOut ? `Locked (${lockoutRemaining}s)` : 'Sign In'}
           </button>
@@ -571,7 +571,7 @@ export const LoginPage: React.FC = () => {
 
         <button
           onClick={handleGoogleSignIn}
-          className="flex items-center justify-center gap-2.5 w-full py-2.5 rounded-xl text-xs font-bold bg-slate-950 hover:bg-slate-900 border border-slate-850 text-slate-300 transition-colors cursor-pointer"
+          className="flex items-center justify-center gap-2.5 w-full py-2.5 rounded-xl text-xs font-bold bg-slate-950 hover:bg-slate-900 border border-slate-850 hover:scale-[1.02] active:scale-[0.98] text-slate-300 hover:text-white transition-all duration-200 cursor-pointer"
         >
           <Globe className="h-4 w-4 text-emerald-400" />
           <span>Google Accounts</span>
@@ -809,7 +809,7 @@ export const RegisterPage: React.FC = () => {
           <button
             type="submit"
             disabled={isSubmitting || !passwordMeetsRequirements}
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors shadow-lg cursor-pointer disabled:opacity-50"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-slate-950 shadow-lg shadow-emerald-500/10 cursor-pointer disabled:opacity-50 disabled:scale-100"
           >
             {isSubmitting ? (
               <span className="flex items-center gap-2">
@@ -903,7 +903,7 @@ export const ForgotPasswordPage: React.FC = () => {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors shadow-lg cursor-pointer disabled:opacity-50"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-slate-950 shadow-lg shadow-emerald-500/10 cursor-pointer disabled:opacity-50 disabled:scale-100"
           >
             {isSubmitting ? <RefreshCw className="h-4 w-4 animate-spin text-slate-950" /> : 'Send Reset Link'}
           </button>
@@ -981,7 +981,7 @@ export const EmailVerificationPage: React.FC = () => {
         <div className="flex flex-col gap-3">
           <button
             onClick={handleReload}
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors shadow-lg cursor-pointer"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-slate-950 shadow-lg shadow-emerald-500/10 cursor-pointer"
           >
             I Have Verified (Refresh)
           </button>
@@ -989,7 +989,7 @@ export const EmailVerificationPage: React.FC = () => {
           <button
             onClick={handleResend}
             disabled={isSending}
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-bold bg-slate-950 hover:bg-slate-900 border border-slate-850 text-slate-300 transition-colors cursor-pointer disabled:opacity-50"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-bold bg-slate-950 hover:bg-slate-900 border border-slate-850 hover:scale-[1.02] active:scale-[0.98] text-slate-350 hover:text-white transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:scale-100"
           >
             {isSending ? <RefreshCw className="h-4 w-4 animate-spin text-slate-300" /> : 'Resend Verification Email'}
           </button>
@@ -1053,14 +1053,14 @@ export const UnauthorizedPage: React.FC = () => {
         <div className="flex flex-col gap-2">
           <button
             onClick={handleReturn}
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors shadow-lg cursor-pointer"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-slate-950 shadow-lg shadow-emerald-500/10 cursor-pointer"
           >
             Return to Dashboard
           </button>
           
           <button
             onClick={handleSignOut}
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-bold bg-slate-950 hover:bg-slate-900 border border-slate-850 text-slate-400 hover:text-slate-350 transition-colors cursor-pointer"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-bold bg-slate-950 hover:bg-slate-900 border border-slate-850 hover:scale-[1.02] active:scale-[0.98] text-slate-400 hover:text-white transition-all duration-200 cursor-pointer"
           >
             Sign Out
           </button>
@@ -1094,7 +1094,7 @@ export const NotFoundPage: React.FC = () => {
 
         <button
           onClick={() => navigate('/')}
-          className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors shadow-lg cursor-pointer"
+          className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-black bg-emerald-500 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-slate-950 shadow-lg shadow-emerald-500/10 cursor-pointer"
         >
           Return to Headquarters
         </button>

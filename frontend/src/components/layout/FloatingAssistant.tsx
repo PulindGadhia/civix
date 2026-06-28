@@ -512,7 +512,7 @@ export const FloatingAssistant: React.FC<FloatingAssistantProps> = ({
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="h-14 w-14 rounded-full bg-gradient-to-tr from-violet-600 via-indigo-600 to-teal-500 hover:from-violet-500 hover:to-teal-400 text-white flex items-center justify-center shadow-2xl hover:scale-105 transition-all animate-bounce cursor-pointer"
+          className="h-14 w-14 rounded-full bg-gradient-to-tr from-violet-650 via-indigo-650 to-teal-500 hover:scale-110 active:scale-95 text-white flex items-center justify-center shadow-xl shadow-indigo-950/40 hover:shadow-indigo-500/25 transition-all duration-300 cursor-pointer animate-pulse"
         >
           <Bot className="h-6 w-6 text-white" />
         </button>
@@ -541,7 +541,7 @@ export const FloatingAssistant: React.FC<FloatingAssistantProps> = ({
 
             <div className="flex items-center gap-2.5">
               {/* Language Selector */}
-              <div className="flex items-center gap-1 border border-slate-900 bg-slate-950 rounded-lg p-1">
+              <div className="flex items-center gap-1 border border-slate-900 bg-slate-950 rounded-lg p-1 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200">
                 <Languages className="h-3 w-3 text-slate-400" />
                 <select
                   value={chatLanguage}
@@ -662,7 +662,7 @@ export const FloatingAssistant: React.FC<FloatingAssistantProps> = ({
                 <button
                   key={idx}
                   onClick={() => handleSend(prompt.text)}
-                  className="px-2.5 py-1 rounded-full bg-slate-900/60 border border-slate-800 hover:border-emerald-500/30 text-[9px] font-semibold text-slate-400 hover:text-emerald-400 transition-all cursor-pointer text-left flex items-center gap-1"
+                  className="px-2.5 py-1 rounded-full bg-slate-900/60 border border-slate-800 hover:border-emerald-500/30 text-[9px] font-semibold text-slate-400 hover:text-emerald-400 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer text-left flex items-center gap-1"
                 >
                   <Sparkles className="h-2.5 w-2.5 text-emerald-400/80" />
                   {prompt.text}
@@ -676,7 +676,7 @@ export const FloatingAssistant: React.FC<FloatingAssistantProps> = ({
             <div className="flex justify-center py-1">
               <button
                 onClick={handleStopGenerating}
-                className="flex items-center gap-1 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 hover:bg-slate-800 text-[10px] font-bold text-rose-400 hover:text-rose-300 transition-colors cursor-pointer"
+                className="flex items-center gap-1 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 hover:bg-slate-850 hover:scale-[1.02] active:scale-[0.98] text-[10px] font-bold text-rose-400 hover:text-rose-300 transition-all duration-200 cursor-pointer"
               >
                 <StopCircle className="h-3.5 w-3.5" />
                 Stop Generating
@@ -705,7 +705,7 @@ export const FloatingAssistant: React.FC<FloatingAssistantProps> = ({
               {/* Media clip */}
               <button
                 onClick={() => imageInputRef.current?.click()}
-                className="p-2 rounded-xl bg-slate-900 border border-slate-850 hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer transition-colors"
+                className="p-2 rounded-xl bg-slate-900 border border-slate-850 hover:bg-slate-800 hover:scale-105 active:scale-95 text-slate-405 hover:text-white cursor-pointer transition-all duration-200"
                 title="Attach photo"
               >
                 <Paperclip className="h-4 w-4" />
@@ -721,7 +721,7 @@ export const FloatingAssistant: React.FC<FloatingAssistantProps> = ({
               {/* Voice button */}
               <button
                 onClick={handleSpeechInput}
-                className={`p-2 rounded-xl border cursor-pointer transition-colors ${
+                className={`p-2 rounded-xl border hover:scale-105 active:scale-95 cursor-pointer transition-all duration-200 ${
                   isListening 
                     ? 'bg-rose-500/20 border-rose-500 text-rose-400 animate-pulse' 
                     : 'bg-slate-900 border-slate-850 hover:bg-slate-800 text-slate-400 hover:text-white'
@@ -744,7 +744,7 @@ export const FloatingAssistant: React.FC<FloatingAssistantProps> = ({
                 <button
                   onClick={() => handleSend()}
                   disabled={isSending || isGenerating || (!userInput.trim() && !attachedImage)}
-                  className="absolute right-1.5 top-1.5 p-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg disabled:bg-slate-800 disabled:text-slate-600 transition-colors cursor-pointer"
+                  className="absolute right-1.5 top-1.5 p-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-lg hover:scale-105 active:scale-95 disabled:bg-slate-800 disabled:text-slate-600 transition-all duration-200 cursor-pointer disabled:scale-100"
                 >
                   <Send className="h-3 w-3" />
                 </button>

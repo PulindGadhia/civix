@@ -156,9 +156,9 @@ export const DepartmentDashboard: React.FC<DepartmentDashboardProps> = ({
             <div className="flex gap-2">
               <button
                 onClick={() => setQueueTab('my_tasks')}
-                className={`text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all ${
+                className={`text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 ${
                   queueTab === 'my_tasks'
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 shadow-sm'
                     : 'text-slate-450 hover:text-slate-200 border border-transparent'
                 }`}
               >
@@ -166,9 +166,9 @@ export const DepartmentDashboard: React.FC<DepartmentDashboardProps> = ({
               </button>
               <button
                 onClick={() => setQueueTab('dept_queue')}
-                className={`text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-lg transition-all ${
+                className={`text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 ${
                   queueTab === 'dept_queue'
-                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25'
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 shadow-sm'
                     : 'text-slate-450 hover:text-slate-200 border border-transparent'
                 }`}
               >
@@ -265,7 +265,7 @@ export const DepartmentDashboard: React.FC<DepartmentDashboardProps> = ({
 
                 <button
                   onClick={() => setIsUpdateModalOpen(true)}
-                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold rounded-xl transition-all cursor-pointer shadow-lg shadow-emerald-500/10"
+                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-slate-950 text-xs font-extrabold rounded-xl cursor-pointer shadow-lg shadow-emerald-500/10"
                 >
                   Transition Lifecycle
                 </button>

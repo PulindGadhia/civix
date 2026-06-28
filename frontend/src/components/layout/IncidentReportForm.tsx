@@ -510,18 +510,7 @@ export const IncidentReportForm: React.FC<IncidentReportFormProps> = ({
     !districtVal.trim() ||
     !countryVal.trim();
 
-  const stepsList = [
-    'Uploading Media...',
-    'Preparing Image...',
-    'Sending to Gemini...',
-    'Analyzing Infrastructure...',
-    'Detecting Civic Issue...',
-    'Evaluating Severity...',
-    'Finding Responsible Department...',
-    'Generating Complaint...',
-    'Preparing AI Report...',
-    'Completed'
-  ];
+
 
   return (
     <div className="flex flex-col h-full bg-slate-900/40 border border-slate-800/80 rounded-3xl overflow-hidden backdrop-blur-md shadow-2xl">
@@ -663,26 +652,55 @@ export const IncidentReportForm: React.FC<IncidentReportFormProps> = ({
 
         {/* Gemini processing loader overlay */}
         {isAiProcessing && (
-          <div className="p-4.5 rounded-2xl bg-slate-950/80 border border-indigo-500/20 backdrop-blur-sm animate-pulse space-y-3">
-            <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1.5">
-              <Cpu className="h-3.5 w-3.5 animate-spin" />
-              Gemini Vision AI Inspection Pipeline
-            </p>
-            <div className="space-y-1.5">
-              {stepsList.map((stepName, idx) => (
-                <div key={idx} className="flex items-center gap-2 text-[10px]">
-                  <span className={`h-1.5 w-1.5 rounded-full ${
-                    aiStep > idx 
-                      ? 'bg-emerald-500' 
-                      : aiStep === idx 
-                      ? 'bg-indigo-400 animate-ping' 
-                      : 'bg-slate-800'
-                  }`} />
-                  <span className={aiStep === idx ? 'text-white font-bold' : 'text-slate-500'}>
-                    {stepName}
-                  </span>
-                </div>
-              ))}
+          <div className="p-5 rounded-2xl bg-slate-950/95 border border-indigo-500/30 backdrop-blur-md space-y-4 shadow-xl shadow-indigo-500/5 animate-fadeIn">
+            <div className="flex justify-between items-center">
+              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                <Cpu className="h-4 w-4 text-indigo-400 animate-spin" />
+                Gemini Vision AI Inspector
+              </p>
+              <span className="text-[10px] font-mono font-bold text-indigo-400">
+                {Math.min(100, Math.round((aiStep / 9) * 100))}%
+              </span>
+            </div>
+
+            {/* Smooth Progress Bar */}
+            <div className="w-full h-1 bg-slate-900 rounded-full overflow-hidden border border-slate-850">
+              <div 
+                className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-violet-500 to-emerald-400 transition-all duration-300"
+                style={{ width: `${Math.min(100, Math.round((aiStep / 9) * 100))}%` }}
+              />
+            </div>
+
+            {/* Virtualized Scan Logs (Azure/GCP Console Style) */}
+            <div className="p-3 bg-slate-950 border border-slate-900 rounded-xl space-y-1.5 font-mono text-[9px] text-slate-400 max-h-[160px] overflow-y-auto">
+              {[
+                { time: '0.0s', log: 'Initializing secure Vision AI uplink...' },
+                { time: '1.2s', log: 'Pre-processing and compressing evidence attachments...' },
+                { time: '2.4s', log: 'Forwarding pixel buffers to Google Gemini 2.5 Flash...' },
+                { time: '3.6s', log: 'Analyzing infrastructure anomalies & civic defects...' },
+                { time: '4.8s', log: 'Detecting classification bounds and upvote verification counts...' },
+                { time: '6.0s', log: 'Evaluating incident priority thresholds...' },
+                { time: '7.2s', log: 'Matching target sector departments & active workloads...' },
+                { time: '8.4s', log: 'Formatting municipal response parameters...' },
+                { time: '9.6s', log: 'Assembling final AI triage report data...' },
+              ].map((item, idx) => {
+                const isActive = aiStep === idx;
+                const isPassed = aiStep > idx;
+                if (aiStep < idx) return null;
+                return (
+                  <div key={idx} className="flex justify-between items-start gap-4">
+                    <div className="flex gap-1.5">
+                      <span className={isPassed ? 'text-emerald-500 font-bold' : isActive ? 'text-indigo-400 font-bold animate-pulse' : 'text-slate-650'}>
+                        {isPassed ? '✔' : isActive ? '❯' : '○'}
+                      </span>
+                      <span className={isActive ? 'text-white font-bold' : isPassed ? 'text-slate-350' : 'text-slate-555'}>
+                        {item.log}
+                      </span>
+                    </div>
+                    <span className="text-slate-600 font-bold shrink-0">{item.time}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
