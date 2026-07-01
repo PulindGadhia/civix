@@ -383,7 +383,7 @@ export const LandingPage: React.FC = () => {
             <p className="text-[10px] text-slate-500 mt-0.5">AI-Powered Smart Municipal Intelligence Platform</p>
           </div>
           <div className="text-center sm:text-right text-[10px] text-slate-500 font-mono">
-            <span>Built by <strong className="text-slate-400 font-bold">$Pulind Gadhia</strong></span>
+            <span>Built by <strong className="text-slate-400 font-bold">~ Pulind Gadhia</strong></span>
           </div>
         </div>
       </footer>
